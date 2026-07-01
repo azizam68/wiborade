@@ -2,6 +2,8 @@ use iced::widget::{button, column, image, row, text_input, text_editor, text, sc
 use iced::{ContentFit, Element, Length, Task};
 use std::fs;
 use std::path::PathBuf;
+use calamine::{ open_workbook, open_workbook_auto };
+use calamine::{ Error, Xlsx, Reader, RangeDeserializerBuilder, Data};
 
 pub struct Gui {
     image_handle: Option<image::Handle>,
@@ -9,6 +11,7 @@ pub struct Gui {
     content: text_editor::Content,
     current_dir: Option<PathBuf>,
     current_dir_path: String,
+    excel_rows: Vec<Vec<String>>,
     files: Vec<(String, bool)>,
 }
 
@@ -21,6 +24,7 @@ impl Default for Gui {
             current_dir: Some(std::env::home_dir().unwrap()),
             current_dir_path: "".into(),
             files: Vec::new(),
+            excel_rows: Vec::new(),
         }
     }
 }
@@ -31,7 +35,8 @@ pub enum Message {
     ImageStageLoaded(u64, Option<image::Handle>),
     ChooseFolder,
     FolderChosen(Option<PathBuf>),
-    ChangePicture(String)
+    ChangePicture(String),
+    LoadXlsx(String),
 }
 
 impl Gui {
@@ -49,9 +54,18 @@ impl Gui {
             column![];
 
         for file in &self.files {
-            fileListColumn = fileListColumn
-                .push(button(text(&file.0)).on_press(Message::ChangePicture(file.0.to_string())));
-        }
+    let message = match std::path::Path::new(&file.0)
+        .extension()
+        .and_then(|ext| ext.to_str())
+    {
+        Some(ext) if ext.eq_ignore_ascii_case("xlsx") => Message::LoadXlsx(file.0.to_string()),
+        _ => Message::ChangePicture(file.0.to_string()),
+    };
+
+    fileListColumn = fileListColumn.push(
+        button(text(&file.0)).on_press(message),
+    );
+}
 
         ligne = ligne.push(scrollable(fileListColumn));
 
@@ -80,6 +94,21 @@ impl Gui {
             .padding(10)
             .spacing(8),
         );
+        } else {
+            let mut excel_lines: iced::widget::Column<'_, Message, iced::Theme, iced::Renderer> =
+            column![];
+
+             for row_data in &self.excel_rows {
+                let line = row_data.iter().fold(
+                    row![].spacing(12),
+                    |r, cell| r.push(text(cell).width(Length::Shrink))
+                );
+                    excel_lines = excel_lines.push(scrollable(line));
+
+            }
+
+            ligne = ligne.push(scrollable(excel_lines));
+
         }
 
         content = content.push(ligne);
@@ -97,6 +126,15 @@ impl Gui {
                 },
                 Message::FolderChosen,
             ),
+            Message::LoadXlsx(xlsx_path) => {
+                dbg!(&xlsx_path);
+                self.image_handle = None;
+
+                let res = load_xlsx_rows(&self.current_dir.clone().unwrap_or_default().join(&xlsx_path).to_string_lossy().to_string());
+                self.excel_rows = res.unwrap();
+
+                Task::none()
+            }
             Message::ChangePicture(picture_path) => {
 
 
@@ -276,4 +314,57 @@ fn fieldBig<'a>(label: &'a str, value: &'a text_editor::Content) -> Element<'a, 
     ]
     .spacing(5)
     .into()
+}
+
+fn example() -> Result<(), Error> {
+    let path = format!("{}/tests/temperature.xlsx", env!("CARGO_MANIFEST_DIR"));
+    let mut workbook: Xlsx<_> = open_workbook(path)?;
+    let range = workbook.worksheet_range("Sheet1")?;
+
+
+    let mut iter = RangeDeserializerBuilder::new().from_range(&range)?;
+
+    if let Some(result) = iter.next() {
+        let (label, value): (String, f64) = result?;
+        assert_eq!(label, "celsius");
+        assert_eq!(value, 22.2222);
+        Ok(())
+    } else {
+        Err(From::from("expected at least one record but got none"))
+    }
+}
+
+fn load_xlsx_rows(path: &str) -> Result<Vec<Vec<String>>, String> {
+    let mut workbook = open_workbook_auto(path).map_err(|e| e.to_string())?;
+
+    let sheet_name = workbook
+        .sheet_names()
+        .first()
+        .cloned()
+        .ok_or_else(|| "Aucune feuille trouvée".to_string())?;
+
+    let range = workbook
+        .worksheet_range(&sheet_name)
+        .map_err(|e| e.to_string())?;
+
+    let rows = range
+        .rows()
+        .map(|row| row.iter().map(cell_to_string).collect::<Vec<String>>())
+        .collect::<Vec<Vec<String>>>();
+
+    Ok(rows)
+}
+
+fn cell_to_string(cell: &Data) -> String {
+    match cell {
+        Data::Empty => String::new(),
+        Data::String(s) => s.clone(),
+        Data::Float(f) => f.to_string(),
+        Data::Int(i) => i.to_string(),
+        Data::Bool(b) => b.to_string(),
+        Data::DateTime(dt) => dt.to_string(),
+        Data::DateTimeIso(s) => s.clone(),
+        Data::DurationIso(s) => s.clone(),
+        Data::Error(e) => format!("Erreur: {e:?}"),
+    }
 }
