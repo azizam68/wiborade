@@ -1,4 +1,4 @@
-use iced::widget::{button, column, image, row, text_input};
+use iced::widget::{button, column, image, row, text_input, text_editor, text, scrollable};
 use iced::{ContentFit, Element, Length, Task};
 use std::fs;
 use std::path::PathBuf;
@@ -6,6 +6,7 @@ use std::path::PathBuf;
 pub struct Gui {
     image_handle: Option<image::Handle>,
     load_generation: u64,
+    content: text_editor::Content,
     current_dir: Option<PathBuf>,
     current_dir_path: String,
     files: Vec<(String, bool)>,
@@ -15,6 +16,7 @@ impl Default for Gui {
     fn default() -> Self {
         Gui {
             image_handle: None,
+            content: text_editor::Content::new(),
             load_generation: 0,
             current_dir: Some(std::env::home_dir().unwrap()),
             current_dir_path: "".into(),
@@ -29,6 +31,7 @@ pub enum Message {
     ImageStageLoaded(u64, Option<image::Handle>),
     ChooseFolder,
     FolderChosen(Option<PathBuf>),
+    ChangePicture(String)
 }
 
 impl Gui {
@@ -40,15 +43,46 @@ impl Gui {
 
         let mut content = column![row![input, load_button]].spacing(10);
 
+        let mut ligne = row![];
+
+        let mut fileListColumn: iced::widget::Column<'_, Message, iced::Theme, iced::Renderer> =
+            column![];
+
+        for file in &self.files {
+            fileListColumn = fileListColumn
+                .push(button(text(&file.0)).on_press(Message::ChangePicture(file.0.to_string())));
+        }
+
+        ligne = ligne.push(scrollable(fileListColumn));
+
         if let Some(handle) = &self.image_handle {
-            content = content.push(
+            ligne = ligne.push(
                 image(handle.clone())
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .content_fit(ContentFit::Contain),
             );
+            ligne = ligne.push(
+            column![
+                field("Type :", "lettre"),
+                field("Date :", "04/01?/1892"),
+                field("Lieu :", "Clève"),
+                field("Correspondant :", "E. Lisegang"),
+                field("Note :", ""),
+                field("Langue :", "allemand"),
+                fieldBig("Contenu :", &self.content),
+                row![
+                    button("reset"),//.on_press(Message::Decrement),
+                    button("save")//.on_press(Message::Decrement)
+                ]
+                .spacing(10)
+            ]
+            .padding(10)
+            .spacing(8),
+        );
         }
 
+        content = content.push(ligne);
         content.into()
     }
 
@@ -63,6 +97,30 @@ impl Gui {
                 },
                 Message::FolderChosen,
             ),
+            Message::ChangePicture(picture_path) => {
+
+
+                        let dir = self.current_dir.clone();
+                        let picture_path_complete = dir.unwrap_or_default().join(picture_path).to_string_lossy().to_string();
+
+                let path_medium = picture_path_complete.clone();
+                    let path_full = picture_path_complete.clone();
+
+                self.load_generation += 1;
+                let generation = self.load_generation;
+
+
+                    Task::batch([
+                    Task::perform(
+                        async move { (generation, medium_quality(&path_medium)) },
+                        |(g, h)| Message::ImageStageLoaded(g, h),
+                    ),
+                    Task::perform(
+                        async move { (generation, full_quality(&path_full)) },
+                        |(g, h)| Message::ImageStageLoaded(g, h),
+                    ),
+                ])
+            }
             Message::FolderChosen(folder) => {
                 match folder {
                     Some(dir) => {
@@ -115,8 +173,6 @@ impl Gui {
                     let path_medium = picture_path.clone();
                     let path_full = picture_path.clone();
 
-dbg!(&path_medium);
-
                     Task::batch([
                     Task::perform(
                         async move { (generation, medium_quality(&path_medium)) },
@@ -127,8 +183,9 @@ dbg!(&path_medium);
                         |(g, h)| Message::ImageStageLoaded(g, h),
                     ),
                 ])
-                }else{Task::none()}
-
+                } else {
+                    Task::none()
+                }
             }
             Message::ImageStageLoaded(generation, handle) => {
                 if generation == self.load_generation && handle.is_some() {
@@ -177,10 +234,7 @@ fn medium_quality(path: &str) -> Option<image::Handle> {
 fn full_quality(path: &str) -> Option<image::Handle> {
     Some(image::Handle::from_path(path))
 }
-/*
-/home/azizam/Desktop/DrCeresato/vol_80/IMG_20260520_160458.jpg
 
-*/
 fn get_files(path: &PathBuf) -> Vec<(String, bool)> {
     let mut pics = Vec::default();
     let mut xlsxes = Vec::default();
@@ -202,4 +256,24 @@ fn get_files(path: &PathBuf) -> Vec<(String, bool)> {
     pics.sort_by(|a, b| a.0.cmp(&b.0));
     xlsxes.append(&mut pics);
     xlsxes
+}
+
+fn field<'a>(label: &'a str, value: &'a str) -> Element<'a, Message> {
+    column![
+        text(label).width(150),
+        text_input("", value)
+            .width(Length::Fill),
+    ]
+    .spacing(5)
+    .into()
+}
+fn fieldBig<'a>(label: &'a str, value: &'a text_editor::Content) -> Element<'a, Message> {
+    column![
+        text(label).width(150),
+        text_editor(value)
+    .size(16)
+    .height(Length::Fixed(6.0 * 22.0)),
+    ]
+    .spacing(5)
+    .into()
 }
