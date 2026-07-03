@@ -1,6 +1,7 @@
 use iced::widget::{button, column, image, row, text_input, text_editor, text, scrollable};
-use iced::{ContentFit, Element, Length, Task};
+use iced::{ContentFit, Element, Length, Task, Background, Color, Theme};
 use std::fs;
+use std::time::SystemTime;
 use std::path::PathBuf;
 use calamine::{ open_workbook, open_workbook_auto };
 use calamine::{ Error, Xlsx, Reader, RangeDeserializerBuilder, Data};
@@ -11,8 +12,10 @@ pub struct Gui {
     content: text_editor::Content,
     current_dir: Option<PathBuf>,
     current_dir_path: String,
+    last_modified: Option<SystemTime>,
     excel_rows: Vec<Vec<String>>,
     files: Vec<(String, bool)>,
+    selected_file: String,
 }
 
 impl Default for Gui {
@@ -24,7 +27,9 @@ impl Default for Gui {
             current_dir: Some(std::env::home_dir().unwrap()),
             current_dir_path: "".into(),
             files: Vec::new(),
+            last_modified: None,
             excel_rows: Vec::new(),
+            selected_file: "".into()
         }
     }
 }
@@ -39,6 +44,15 @@ pub enum Message {
     LoadXlsx(String),
 }
 
+#[derive(Debug)]
+enum LoadResult {
+    Unchanged,
+    Loaded {
+        rows: Vec<Vec<String>>,
+        modified: SystemTime,
+    },
+}
+
 impl Gui {
     pub fn view(&self) -> Element<Message> {
         let input = text_input("choisir le dossier ...", &self.current_dir_path)
@@ -50,22 +64,33 @@ impl Gui {
 
         let mut ligne = row![];
 
-        let mut fileListColumn: iced::widget::Column<'_, Message, iced::Theme, iced::Renderer> =
+        let mut fileListColumn: iced::widget::Column<'_ , Message, iced::Theme, iced::Renderer> =
             column![];
 
         for file in &self.files {
-    let message = match std::path::Path::new(&file.0)
-        .extension()
-        .and_then(|ext| ext.to_str())
-    {
-        Some(ext) if ext.eq_ignore_ascii_case("xlsx") => Message::LoadXlsx(file.0.to_string()),
-        _ => Message::ChangePicture(file.0.to_string()),
-    };
+            let message = match std::path::Path::new(&file.0)
+                .extension()
+                .and_then(|ext| ext.to_str())
+            {
+                Some(ext) if ext.eq_ignore_ascii_case("xlsx") => Message::LoadXlsx(file.0.to_string()),
+                _ => Message::ChangePicture(file.0.to_string()),
+            };
+    
+            let current_file = self.selected_file.clone();
 
-    fileListColumn = fileListColumn.push(
-        button(text(&file.0)).on_press(message),
-    );
-}
+            fileListColumn = fileListColumn.push(
+                button(text(&file.0)).on_press(message).style(move |theme: &Theme, status| {
+                            let mut style = button::text(theme, status);
+                            if current_file == file.0 {
+                                style.background = Some(Background::Color(
+                                    Color::from_rgb(0.2, 0.5, 0.9),
+                                ));
+                                style.text_color = Color::WHITE;
+                            }
+                            style
+                        }),
+            );
+        }
 
         ligne = ligne.push(scrollable(fileListColumn));
 
@@ -129,14 +154,40 @@ impl Gui {
             Message::LoadXlsx(xlsx_path) => {
                 dbg!(&xlsx_path);
                 self.image_handle = None;
+                self.selected_file = self.current_dir.clone().unwrap_or_default().join(&xlsx_path).to_string_lossy().to_string();
 
-                let res = load_xlsx_rows(&self.current_dir.clone().unwrap_or_default().join(&xlsx_path).to_string_lossy().to_string());
-                self.excel_rows = res.unwrap();
+                match load_xlsx_rows(&self.selected_file, self.last_modified) {
+                    Ok(LoadResult::Unchanged) => {
+                        // rien à faire, on garde les données actuelles
+                        println!("Fichier inchangé, pas de rechargement");
+                    }
+                    Ok(LoadResult::Loaded { rows, modified }) => {
+                        self.excel_rows = rows;
+                        self.last_modified = Some(modified);
+                    }
+                    Err(e) => {
+                        eprintln!("Erreur: {e}");
+                    }
+                }
+
 
                 Task::none()
             }
             Message::ChangePicture(picture_path) => {
 
+                dbg!(&picture_path);
+
+match Self::get_row_for_file(&self.files, &self.excel_rows, &picture_path) {
+    Ok(row) => {
+        println!("Ligne trouvée: {row:?}");
+    }
+    Err(e) => {
+        eprintln!("Erreur: {e}");
+    }
+}
+
+                self.image_handle = None;
+                self.selected_file = picture_path.clone();
 
                         let dir = self.current_dir.clone();
                         let picture_path_complete = dir.unwrap_or_default().join(picture_path).to_string_lossy().to_string();
@@ -148,7 +199,10 @@ impl Gui {
                 let generation = self.load_generation;
 
 
+
+
                     Task::batch([
+                        
                     Task::perform(
                         async move { (generation, medium_quality(&path_medium)) },
                         |(g, h)| Message::ImageStageLoaded(g, h),
@@ -232,6 +286,18 @@ impl Gui {
                 Task::none()
             }
         }
+    }
+    pub fn get_row_for_file<'a>(files: &[(String, bool)], excel_rows: &'a [Vec<String>], filename: &str) -> Result<&'a Vec<String>, String> {
+        let index = files
+            .iter()
+            .position(|(name, _)| name == filename)
+            .ok_or_else(|| format!("Fichier '{filename}' introuvable dans files"))?;
+
+        let row_index = index - 1;
+
+        excel_rows
+            .get(row_index)
+            .ok_or_else(|| format!("Aucune ligne à l'index {row_index} dans excel_rows"))
     }
 }
 
@@ -332,9 +398,18 @@ fn example() -> Result<(), Error> {
     } else {
         Err(From::from("expected at least one record but got none"))
     }
+
 }
 
-fn load_xlsx_rows(path: &str) -> Result<Vec<Vec<String>>, String> {
+fn load_xlsx_rows(path: &str, last_modified: Option<SystemTime>) -> Result<LoadResult, String> {
+    let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
+    let modified = metadata.modified().map_err(|e| e.to_string())?;
+
+    // Early return si rien n'a changé
+    if Some(modified) == last_modified {
+        return Ok(LoadResult::Unchanged);
+    }
+
     let mut workbook = open_workbook_auto(path).map_err(|e| e.to_string())?;
 
     let sheet_name = workbook
@@ -352,7 +427,7 @@ fn load_xlsx_rows(path: &str) -> Result<Vec<Vec<String>>, String> {
         .map(|row| row.iter().map(cell_to_string).collect::<Vec<String>>())
         .collect::<Vec<Vec<String>>>();
 
-    Ok(rows)
+    Ok(LoadResult::Loaded { rows, modified })
 }
 
 fn cell_to_string(cell: &Data) -> String {
