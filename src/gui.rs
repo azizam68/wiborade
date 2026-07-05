@@ -1,22 +1,27 @@
 use calamine::{Data, Error, RangeDeserializerBuilder, Reader, Xlsx};
 use calamine::{open_workbook, open_workbook_auto};
 use iced::widget::text_editor::Content;
-use iced::widget::{button, column, image, row, scrollable, text, text_editor, text_input};
+use iced::widget::{button, column, image, row, scrollable, text, text_editor, text_input, space};
 use iced::{Background, Color, ContentFit, Element, Length, Task, Theme};
 use std::fs;
 use std::path::PathBuf;
+use std::ptr::null_mut;
 use std::time::SystemTime;
+use umya_spreadsheet::*;
 
 pub struct Gui {
     image_handle: Option<image::Handle>,
     load_generation: u64,
     content: text_editor::Content,
     current_dir: Option<PathBuf>,
+    current_index: i32,
+    current_index_str: String,
     current_dir_path: String,
     last_modified: Option<SystemTime>,
     excel_rows: Vec<Vec<String>>,
     files: Vec<(String, bool)>,
     selected_file: String,
+    excel_opened_file: String,
     current_row: Vec<String>,
 }
 
@@ -25,6 +30,8 @@ impl Default for Gui {
         Gui {
             image_handle: None,
             content: text_editor::Content::new(),
+            current_index: -1,
+            current_index_str: "".into(),
             load_generation: 0,
             current_dir: Some(std::env::home_dir().unwrap()),
             current_dir_path: "".into(),
@@ -32,7 +39,8 @@ impl Default for Gui {
             last_modified: None,
             excel_rows: Vec::new(),
             selected_file: "".into(),
-            current_row: Vec::new()
+            excel_opened_file: "".into(),
+            current_row: Vec::new(),
         }
     }
 }
@@ -45,6 +53,9 @@ pub enum Message {
     FolderChosen(Option<PathBuf>),
     ChangePicture(String),
     LoadXlsx(String),
+    ExcelUpdate(usize, String),
+    ExcelSubmit,
+    ExcelUpdated(Result<(), String>)
 }
 
 #[derive(Debug)]
@@ -104,26 +115,31 @@ impl Gui {
                     .height(Length::Fill)
                     .content_fit(ContentFit::Contain),
             );
-            if(self.current_row.len()>0){
-            ligne = ligne.push(
-                column![
-                    field("Type :", &self.current_row[0]),
-                    field("Date :", &self.current_row[1]),
-                    field("Lieu :", &self.current_row[2]),
-                    field("Correspondant :", &self.current_row[3]),
-                    field("Note :", &self.current_row[4]),
-                    field("Langue :", &self.current_row[5]),
-                    fieldBig("Contenu :", &self.content),
-                    row![
-                        button("reset"), //.on_press(Message::Decrement),
-                        button("save")   //.on_press(Message::Decrement)
+            if self.current_row.len() > 0 {
+                ligne = ligne.push(
+                    column![
+                        row![
+                            field("Ligne Excel :", &self.current_index_str, 0),
+                            field("Page :", &self.current_row[6], 7),
+                        ],
+                        field("Type :", &self.current_row[0], 1),
+                        field("Date :", &self.current_row[1], 2),
+                        field("Lieu :", &self.current_row[2], 3),
+                        field("Correspondant :", &self.current_row[3], 4),
+                        field("Note :", &self.current_row[4], 5),
+                        field("Langue :", &self.current_row[5], 6),
+                        fieldBig("Contenu :", &self.content),
+                        row![
+                            space::horizontal(),
+                            button("reset"), //.on_press(Message::Decrement),
+                            button("save")   //.on_press(Message::Decrement)
+                        ]
+                        .spacing(10)
                     ]
-                    .spacing(10)
-                ]
-                .padding(10)
-                .spacing(8),
-            );
-        }
+                    .padding(10)
+                    .spacing(8),
+                );
+            }
         } else {
             let mut excel_lines: iced::widget::Column<'_, Message, iced::Theme, iced::Renderer> =
                 column![];
@@ -144,17 +160,49 @@ impl Gui {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::ExcelUpdate(index, new_val) => {
+                if index > 0 {
+                    self.current_row[index - 1] = new_val;
+                }
+                Task::none()
+            }
+            Message::ExcelSubmit => {
+                if self.current_row.clone().get(6) == self.excel_rows.get((self.current_index-1) as usize).unwrap().get(6)
+                {
+                    println!("rien a modifier dans le excel");
+                    Task::none()
+                }
+                else {
+                    println!("modifier le excel");
+                    dbg!(self.current_row.clone().get(6).unwrap());
+                    dbg!(self.excel_rows.get(self.current_index as usize).unwrap().get(6).unwrap());
+
+                let output_path = self.excel_opened_file.clone();
+                let row_index = self.current_index_str.parse().unwrap_or(0); // à adapter selon ton state
+                let values = self.current_row.clone();
+
+                Task::perform(
+                    async move {
+                        insert_row_in_excel(&output_path, row_index, values)
+                            .map_err(|e| e.to_string())
+                    },
+                    Message::ExcelUpdated,
+                )
+            }
+            }
+            Message::ExcelUpdated(result) => {
+                println!("done with message");
+                Task::none()
+            }
             Message::ChooseFolder => Task::perform(
-                async {
+                async 
+                {
                     rfd::AsyncFileDialog::new()
                         .pick_folder()
                         .await
                         .map(|handle| handle.path().to_path_buf())
-                },
-                Message::FolderChosen,
-            ),
+                }, Message::FolderChosen),
             Message::LoadXlsx(xlsx_path) => {
-                dbg!(&xlsx_path);
                 self.image_handle = None;
                 self.selected_file = self
                     .current_dir
@@ -172,6 +220,7 @@ impl Gui {
                     Ok(LoadResult::Loaded { rows, modified }) => {
                         self.excel_rows = rows;
                         self.last_modified = Some(modified);
+                        self.excel_opened_file = self.selected_file.clone();
                     }
                     Err(e) => {
                         eprintln!("Erreur: {e}");
@@ -180,15 +229,27 @@ impl Gui {
 
                 Task::none()
             }
-
             Message::ChangePicture(picture_path) => {
                 dbg!(&picture_path);
 
-                match Self::get_row_for_file(&self.files, &self.excel_rows, &picture_path) {
+                match self.get_row_for_file(&picture_path) {
                     Ok(row) => {
-                        println!("Ligne trouvée: {row:?}");
-                        self.current_row = row.clone();
-                        self.content = Content::with_text(&row[6]);
+                        let mut current_row = row.clone(); // la référence n'est plus nécessaire après
+
+
+
+
+                        if current_row.get(6)==None {
+                            current_row.push(String::from("1"));
+                        }
+
+
+                        self.current_row = current_row;
+
+                        
+                        println!("Ligne trouvée: {:?}", self.current_row);
+
+                        self.content = Content::with_text(&self.current_row[6]);
                     }
                     Err(e) => {
                         eprintln!("Erreur: {e}");
@@ -297,19 +358,19 @@ impl Gui {
         }
     }
 
-    pub fn get_row_for_file<'a>(
-        files: &[(String, bool)],
-        excel_rows: &'a [Vec<String>],
-        filename: &str,
-    ) -> Result<&'a Vec<String>, String> {
-        let index = files
+    pub fn get_row_for_file(&mut self, filename: &str) -> Result<&Vec<String>, String> {
+        let index = self
+            .files
             .iter()
             .position(|(name, _)| name == filename)
             .ok_or_else(|| format!("Fichier '{filename}' introuvable dans files"))?;
 
         let row_index = index - 1;
 
-        excel_rows
+        self.current_index = index as i32; // i32::try_from(x).unwrap();
+        self.current_index_str = index.to_string();
+
+        self.excel_rows
             .get(row_index)
             .ok_or_else(|| format!("Aucune ligne à l'index {row_index} dans excel_rows"))
     }
@@ -376,10 +437,13 @@ fn get_files(path: &PathBuf) -> Vec<(String, bool)> {
     xlsxes
 }
 
-fn field<'a>(label: &'a str, value: &'a str) -> Element<'a, Message> {
+fn field<'a>(label: &'a str, value: &'a str, index: usize) -> Element<'a, Message> {
     column![
         text(label).width(150),
-        text_input("", value).width(Length::Fill),
+        text_input("", value)
+            .on_input(move |new_val| Message::ExcelUpdate(index, new_val))
+            .on_submit(Message::ExcelSubmit)
+            .width(Length::Fill),
     ]
     .spacing(5)
     .into()
@@ -437,4 +501,30 @@ fn cell_to_string(cell: &Data) -> String {
         Data::DurationIso(s) => s.clone(),
         Data::Error(e) => format!("Erreur: {e:?}"),
     }
+}
+
+fn insert_row_in_excel(file_path: &str,
+    //    sheet_name: &str,
+    row_index: u32,
+    values: Vec<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+
+    let mut book = reader::xlsx::read(file_path)?;
+
+    let sheet_name = book.sheet(0)?.name().to_string();
+    let sheet = book.sheet_by_name_mut(&sheet_name)?;
+
+    sheet.insert_new_row(row_index, 1);
+
+    for (col_index, value) in values.iter().enumerate() {
+        let col = (col_index + 1) as u32;
+        if col_index == 6 {
+            sheet.cell_mut((col, row_index)).set_value(value);
+        }
+    }
+
+    writer::xlsx::write(&book, file_path)?;
+
+
+    Ok(())
 }
