@@ -9,6 +9,7 @@ iced = { version = "0.14.0", features = ["debug", "image"] }
 image = "0.25.10"
 kamadak-exif = "0.6.1"
 rfd = "0.17.2"
+umya-spreadsheet = "3.0.0"
 
 [profile.dev.package."*"]
 opt-level = 3
