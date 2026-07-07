@@ -1,4 +1,4 @@
-use calamine::{Data, Error, RangeDeserializerBuilder, Reader, Xlsx};
+use calamine::{Data, DataType, Error, RangeDeserializerBuilder, Reader, Xlsx};
 use calamine::{open_workbook, open_workbook_auto};
 use iced::widget::text_editor::Content;
 use iced::widget::{button, column, image, row, scrollable, text, text_editor, text_input, space};
@@ -167,29 +167,48 @@ impl Gui {
                 Task::none()
             }
             Message::ExcelSubmit => {
-                if self.current_row.clone().get(6) == self.excel_rows.get((self.current_index-1) as usize).unwrap().get(6)
-                {
-                    println!("rien a modifier dans le excel");
-                    Task::none()
-                }
-                else {
-                    println!("modifier le excel");
-                    dbg!(self.current_row.clone().get(6).unwrap());
-                    dbg!(self.excel_rows.get(self.current_index as usize).unwrap().get(6).unwrap());
+    let idx = self.current_index as usize;
 
-                let output_path = self.excel_opened_file.clone();
-                let row_index = self.current_index_str.parse().unwrap_or(0); // à adapter selon ton state
-                let values = self.current_row.clone();
+    // Copie current_row dans excel_rows à l'index voulu
+    if idx < self.excel_rows.len() {
+        self.excel_rows[idx-1] = self.current_row.clone();
+    } else {
+        // Si l'index dépasse la taille actuelle, on ajoute à la fin
+        self.excel_rows.push(self.current_row.clone());
+    }
 
-                Task::perform(
-                    async move {
-                        insert_row_in_excel(&output_path, row_index, values)
-                            .map_err(|e| e.to_string())
-                    },
-                    Message::ExcelUpdated,
-                )
-            }
-            }
+    if self.current_row.get(6).unwrap() != ""
+        && self.current_row.get(6).unwrap() != "1"
+        && self.current_row.get(6) != self.excel_rows.get((self.current_index - 1) as usize).unwrap().get(6)
+    {
+        println!("insert dans le excel");
+
+        let output_path = self.excel_opened_file.clone();
+        let row_index = self.current_index_str.parse().unwrap_or(0);
+        let values = self.current_row.clone();
+
+        Task::perform(
+            async move {
+                insert_row_in_excel(&output_path, row_index, values)
+                    .map_err(|e| e.to_string())
+            },
+            Message::ExcelUpdated,
+        )
+    } else {
+        let output_path = self.excel_opened_file.clone();
+        let row_index = self.current_index_str.parse().unwrap_or(0);
+        let values = self.current_row.clone();
+        println!("modifier le excel ligne {} de {}", self.current_index_str.parse().unwrap_or(0), self.excel_opened_file.clone());
+
+        Task::perform(
+            async move {
+                update_row_excel(&output_path, row_index, values)
+                    .map_err(|e| e.to_string())
+            },
+            Message::ExcelUpdated,
+        )
+    }
+}
             Message::ExcelUpdated(result) => {
                 println!("done with message");
                 Task::none()
@@ -236,13 +255,9 @@ impl Gui {
                     Ok(row) => {
                         let mut current_row = row.clone(); // la référence n'est plus nécessaire après
 
-
-
-
                         if current_row.get(6)==None {
                             current_row.push(String::from("1"));
                         }
-
 
                         self.current_row = current_row;
 
@@ -253,6 +268,7 @@ impl Gui {
                     }
                     Err(e) => {
                         eprintln!("Erreur: {e}");
+                        self.current_row = vec![String::new(); 7];
                     }
                 }
 
@@ -489,7 +505,21 @@ fn load_xlsx_rows(path: &str, last_modified: Option<SystemTime>) -> Result<LoadR
     Ok(LoadResult::Loaded { rows, modified })
 }
 
-fn cell_to_string(cell: &Data) -> String {
+fn cell_to_string(cell: &calamine::Data) -> String {
+
+    // On tente d'abord une interprétation date/heure, quel que soit le variant
+    if cell.is_datetime() {
+        if let Some(dt) = cell.as_datetime() {
+            return dt.format("%d-%m-%Y").to_string();
+        }
+        if let Some(d) = cell.as_date() {
+            return d.format("%d-%m-%Y").to_string();
+        }
+        if let Some(t) = cell.as_time() {
+            return t.format("%H:%M:%S").to_string();
+        }
+    }
+    
     match cell {
         Data::Empty => String::new(),
         Data::String(s) => s.clone(),
@@ -501,6 +531,32 @@ fn cell_to_string(cell: &Data) -> String {
         Data::DurationIso(s) => s.clone(),
         Data::Error(e) => format!("Erreur: {e:?}"),
     }
+}
+
+fn update_row_excel(file_path: &str, row_index: usize, data: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    // Ouvre le classeur
+    let mut book = reader::xlsx::read(file_path)?;
+
+
+    // Récupère la première feuille
+    let sheet = book
+        .sheet_mut(0)
+        .map_err(|_| "Aucune feuille dans le classeur")?;
+    // Ligne Excel (1 = première ligne)
+    // Si la ligne 1 contient les en-têtes :
+
+    let excel_row = row_index  as u32;
+
+    // Écrit chaque colonne
+    for (i, value) in data.iter().enumerate() {
+        let column = (i + 1) as u32;
+        sheet.cell_mut((column, excel_row)).set_value(value);
+    }
+
+    // Sauvegarde le fichier
+    writer::xlsx::write(&book, file_path)?;
+
+    Ok(())
 }
 
 fn insert_row_in_excel(file_path: &str,

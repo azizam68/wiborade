@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-calamine = "0.35.0"
+calamine = { version = "0.35.0", features = ["dates"] }
 iced = { version = "0.14.0", features = ["debug", "image"] }
 image = "0.25.10"
 kamadak-exif = "0.6.1"
