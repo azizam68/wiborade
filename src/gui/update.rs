@@ -33,7 +33,7 @@ impl Gui {
     fn on_excel_submit(&mut self) -> Task<Message> {
         let idx = self.current_index as usize;
 
-        if idx < self.excel_rows.len() {
+        if idx <= self.excel_rows.len() {
             self.excel_rows[idx - 1] = self.current_row.clone();
         } else {
             self.excel_rows.push(self.current_row.clone());
