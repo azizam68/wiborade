@@ -10,5 +10,6 @@ use iced::Task;
 fn main() -> iced::Result {
     iced::application(|| (Gui::default(), Task::none()), Gui::update, Gui::view)
         .title("Gui")
+        .subscription(Gui::subscription)
         .run()
 }

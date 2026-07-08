@@ -1,5 +1,6 @@
 mod update;
 mod view;
+mod subscription;
 
 use iced::widget::{image, text_editor};
 use std::path::PathBuf;

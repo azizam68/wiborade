@@ -12,4 +12,6 @@ pub enum Message {
     ExcelUpdate(usize, String),
     ExcelSubmit,
     ExcelUpdated(Result<(), String>),
+    FocusNext,
+    FocusPrevious
 }
