@@ -2,6 +2,7 @@ use super::Gui;
 use crate::message::Message;
 use crate::{excel, files, image_ops};
 use iced::widget::image;
+use iced::widget::operation;
 use iced::widget::text_editor::Content;
 use iced::Task;
 use std::path::PathBuf;
@@ -12,6 +13,8 @@ impl Gui {
             Message::ExcelUpdate(index, new_val) => self.on_excel_update(index, new_val),
             Message::ExcelSubmit => self.on_excel_submit(),
             Message::ExcelUpdated(result) => self.on_excel_updated(result),
+            Message::FocusNext => operation::focus_next(),
+            Message::FocusPrevious => operation::focus_previous(),
             Message::ChooseFolder => self.on_choose_folder(),
             Message::LoadXlsx(xlsx_path) => self.on_load_xlsx(xlsx_path),
             Message::ChangePicture(picture_path) => self.on_change_picture(picture_path),
