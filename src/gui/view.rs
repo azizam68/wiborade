@@ -1,6 +1,6 @@
 use super::Gui;
 use crate::message::Message;
-use iced::widget::{button, column, image, row, scrollable, space, text, text_editor, text_input};
+use iced::widget::{button, column, image, row, scrollable, space, text, text_editor, text_input, container};
 use iced::{Background, Color, ContentFit, Element, Length, Theme};
 
 impl Gui {
@@ -9,7 +9,7 @@ impl Gui {
             .on_submit(Message::LoadPressed);
         let load_button = button("Charger").on_press(Message::ChooseFolder);
 
-        let mut content = column![row![input, load_button]].spacing(10);
+        let mut content = column![row![input, load_button]].spacing(10).height(Length::Fill);
         let mut ligne = row![scrollable(self.file_list())];
 
         if let Some(handle) = &self.image_handle {
@@ -26,7 +26,30 @@ impl Gui {
             ligne = ligne.push(scrollable(self.excel_preview()));
         }
 
+        ligne = ligne.height(Length::Fill);
         content = content.push(ligne);
+
+        let status_bar = container(
+        row![
+            text(format!("v{}", env!("CARGO_PKG_VERSION"))),
+            space::horizontal(), // pousse tout le reste à droite
+            text(format!("Files: {}", self.files.capacity())),
+            text(format!("Index: {}", self.current_index)),
+            text(format!("Excel capacity: {}", self.excel_rows.capacity()))
+        ]
+        .spacing(20)
+    )
+    .padding(5)
+    .width(Length::Fill)
+    .style(|_theme| container::Style {
+        background: Some(iced::Color::from_rgb(0.9, 0.9, 0.9).into()),
+        ..Default::default()
+    })
+    .align_y(iced::alignment::Vertical::Bottom);
+
+            content = content.height(Length::Fill).push(status_bar);
+ 
+
         content.into()
     }
 
