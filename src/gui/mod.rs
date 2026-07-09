@@ -8,6 +8,7 @@ use std::time::SystemTime;
 
 pub struct Gui {
     image_handle: Option<image::Handle>,
+    image_original: Option<::image::DynamicImage>,
     load_generation: u64,
     content: text_editor::Content,
     current_dir: Option<PathBuf>,
@@ -20,11 +21,15 @@ pub struct Gui {
     selected_file: String,
     excel_opened_file: String,
     current_row: Vec<String>,
+    angle: u16,             // 0, 90, 180, 270
+    zoom: f32,              // 0.25 .. 3.0
 }
 
 impl Default for Gui {
     fn default() -> Self {
         Gui {
+            image_original: None,
+            angle: 0, zoom: 1.0,
             image_handle: None,
             content: text_editor::Content::new(),
             current_index: -1,

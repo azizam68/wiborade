@@ -13,5 +13,8 @@ pub enum Message {
     ExcelSubmit,
     ExcelUpdated(Result<(), String>),
     FocusNext,
-    FocusPrevious
+    FocusPrevious,
+    RotateCw,
+    RotateCcw,
+    ZoomChanged(f32),
 }

@@ -10,6 +10,20 @@ use std::path::PathBuf;
 impl Gui {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::RotateCw => {
+                self.angle = (self.angle + 90) % 360;
+                self.refresh_handle();
+                Task::none()
+            }
+            Message::RotateCcw => {
+                self.angle = (self.angle + 270) % 360; // -90 mod 360
+                self.refresh_handle();
+                Task::none()
+            }
+            Message::ZoomChanged(z) => {
+                self.zoom = z;
+                Task::none()
+            }
             Message::ExcelUpdate(index, new_val) => self.on_excel_update(index, new_val),
             Message::ExcelSubmit => self.on_excel_submit(),
             Message::ExcelUpdated(result) => self.on_excel_updated(result),
@@ -128,7 +142,25 @@ impl Gui {
 
         Task::none()
     }
+fn refresh_handle(&mut self) {
+        let rotated = match self.angle {
+            90  => self.image_original.as_ref().unwrap().rotate90(),
+            180 => self.image_original.as_ref().unwrap().rotate180(),
+            270 => self.image_original.as_ref().unwrap().rotate270(),
+            _   => self.image_original.as_ref().unwrap().clone(),
+        };
+        self.image_handle = to_handle(&rotated);
+    }
 
+    /// Utile plus tard pour écrire le tag EXIF Orientation
+    pub fn exif_orientation(&self) -> u16 {
+        match self.angle {
+            90  => 6,
+            180 => 3,
+            270 => 8,
+            _   => 1,
+        }
+    }
     fn on_change_picture(&mut self, picture_path: String) -> Task<Message> {
         dbg!(&picture_path);
 
@@ -240,4 +272,9 @@ fn is_supported_image(name: &str) -> bool {
             .as_deref(),
         Some("jpg" | "jpeg" | "png" | "bmp" | "gif" | "webp" | "tif" | "tiff")
     )
+}
+fn to_handle(img: &::image::DynamicImage) -> Option<image::Handle> {
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    Some(image::Handle::from_rgba(w, h, rgba.into_raw()))
 }
