@@ -5,7 +5,9 @@ use iced::widget::image;
 use iced::widget::operation;
 use iced::widget::text_editor::Content;
 use iced::Task;
+use ::image::DynamicImage;
 use std::path::PathBuf;
+use std::ptr::null;
 
 impl Gui {
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -36,6 +38,12 @@ impl Gui {
             Message::LoadPressed => self.on_load_pressed(),
             Message::ImageStageLoaded(generation, handle) => {
                 self.on_image_stage_loaded(generation, handle)
+            }
+            Message::ImageOriginalLoaded(generation, handle) => {
+                if generation == self.load_generation && handle.is_some() {
+                self.image_original = handle;
+            }
+        Task::none()
             }
         }
     }
@@ -163,7 +171,7 @@ fn refresh_handle(&mut self) {
     }
     fn on_change_picture(&mut self, picture_path: String) -> Task<Message> {
         dbg!(&picture_path);
-
+self.zoom=1.0;
         match self.get_row_for_file(&picture_path) {
             Ok(row) => {
                 let mut current_row = row.clone();
@@ -240,6 +248,7 @@ fn refresh_handle(&mut self) {
     ) -> Task<Message> {
         if generation == self.load_generation && handle.is_some() {
             self.image_handle = handle;
+
         }
         Task::none()
     }
@@ -249,7 +258,8 @@ fn refresh_handle(&mut self) {
 /// et envoie chaque étape comme un message séparé.
 fn load_image_task(generation: u64, path: String) -> Task<Message> {
     let path_medium = path.clone();
-    let path_full = path;
+    let path_full = path.clone();
+    let path_full2 = path;
 
     Task::batch([
         Task::perform(
@@ -259,6 +269,10 @@ fn load_image_task(generation: u64, path: String) -> Task<Message> {
         Task::perform(
             async move { (generation, image_ops::full_quality(&path_full)) },
             |(g, h)| Message::ImageStageLoaded(g, h),
+        ),
+        Task::perform(
+            async move { (generation, image_ops::original(&path_full2)) },
+            |(g, h)| Message::ImageOriginalLoaded(g, h),
         ),
     ])
 }

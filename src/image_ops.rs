@@ -14,6 +14,14 @@ pub fn full_quality(path: &str) -> Option<image::Handle> {
     Some(image::Handle::from_path(path))
 }
 
+pub fn original(path: &str) -> Option<::image::DynamicImage>  {
+    let imgbuff = ::image::ImageReader::open(path).unwrap();
+
+         // with_guessed_format()?  // détecte le format même si l'extension est trompeuse
+    let img = imgbuff.decode().unwrap();
+    Some(img)
+}
+
 /// Miniature embarquée dans les métadonnées EXIF du fichier (non utilisée pour
 /// l'instant dans update.rs, gardée disponible si besoin plus tard).
 #[allow(dead_code)]
