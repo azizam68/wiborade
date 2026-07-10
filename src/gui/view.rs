@@ -43,14 +43,6 @@ let image_area = responsive(|size| {
     let displayed_w = base_w as f32 * fit_zoom * self.zoom;
     let displayed_h = base_h as f32 * fit_zoom * self.zoom;
 
-    println!(
-        "zone={}x{}, image={}x{}, zoom={}",
-        available_width,
-        available_height,
-        displayed_w,
-        displayed_h,
-        self.zoom
-    );
 scrollable(
         image(handle.clone())
             .width(Length::Fixed(displayed_w))
