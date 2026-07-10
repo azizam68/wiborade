@@ -5,6 +5,7 @@ use std::path::PathBuf;
 pub enum Message {
     LoadPressed,
     ImageStageLoaded(u64, Option<image::Handle>),
+    ImageOriginalLoaded(u64, Option<::image::DynamicImage>),
     ChooseFolder,
     FolderChosen(Option<PathBuf>),
     ChangePicture(String),

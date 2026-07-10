@@ -18,3 +18,8 @@
 ## [0.1.3] - 2026-07-09
 ### Changed
 - Ajout de `gui/subscription.rs` dans `gui.rs` pour permettre l'utilisation des touches tab, fleche haut et bas dans le form
+
+## [0.1.4] - 2026-07-10
+### Changed
+- Ajout de la barre de status
+- Ajout du zoom et rotation de l'image
