@@ -170,16 +170,20 @@ fn refresh_handle(&mut self) {
         }
     }
     fn on_change_picture(&mut self, picture_path: String) -> Task<Message> {
-        dbg!(&picture_path);
-self.zoom=1.0;
+        
+        self.zoom=1.0;
         match self.get_row_for_file(&picture_path) {
             Ok(row) => {
                 let mut current_row = row.clone();
 
-                if current_row.get(6).is_none() {
-                    current_row.push(String::from("1"));
+                let mut i = 0;
+                while i < 7 {
+                    if current_row.get(i).is_none() {
+                        current_row.push("".to_string());
+                    }
+                    i+=1;    
                 }
-
+                
                 self.current_row = current_row;
                 println!("Ligne trouvée: {:?}", self.current_row);
                 self.content = Content::with_text(&self.current_row[6]);
