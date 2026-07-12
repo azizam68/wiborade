@@ -23,3 +23,8 @@
 ### Changed
 - Ajout de la barre de status
 - Ajout du zoom et rotation de l'image
+
+## [0.1.5] - 2026-07-12
+### Changed
+- Corrige le comportement de l'app quand on utilise un clavier numerique
+- Le fichier de listing est automatiquement crée si absent

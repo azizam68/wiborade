@@ -112,7 +112,7 @@ scrollable(
             ..Default::default()
         })
         .align_y(iced::alignment::Vertical::Bottom);
-
+    
         content = content.height(Length::Fill).push(status_bar);
 
         content.into()
