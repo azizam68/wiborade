@@ -3,11 +3,11 @@ use crate::message::Message;
 use iced::widget::{
     button, column, container, image, row, scrollable, slider, space, text, text_editor, text_input,
 };
-use iced::{Alignment, Background, Color, ContentFit, Element, Length, Theme, Window};
+use iced::{ Alignment, Background, Color, ContentFit, Element, Length, Theme };
 use iced::widget::{responsive};
 
 impl Gui {
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         let input = text_input("choisir le dossier ...", &self.current_dir_path)
             .on_submit(Message::LoadPressed);
         let load_button = button("Charger").on_press(Message::ChooseFolder);
@@ -18,10 +18,6 @@ impl Gui {
         let mut ligne = row![scrollable(self.file_list()).width(250),];
 
         if let Some(handle) = &self.image_handle {
-let (base_w, base_h) = match &self.image_original {
-                    None => (0, 0),
-                    Some(img) => (img.width(), img.height()),
-                };
 
 let image_area = responsive(|size| {
     let available_width = size.width;
@@ -112,7 +108,7 @@ scrollable(
             ..Default::default()
         })
         .align_y(iced::alignment::Vertical::Bottom);
-
+    
         content = content.height(Length::Fill).push(status_bar);
 
         content.into()

@@ -19,7 +19,32 @@ pub fn list(path: &PathBuf) -> Vec<(String, bool)> {
         }
     }
 
-    pics.sort_by(|a, b| a.0.cmp(&b.0));
-    xlsxes.append(&mut pics);
+//pics.sort_by(|a, b| a.0.cmp(&b.0));
+
+pics.sort_by(|a, b| a.0.cmp(&b.0));
+
+if xlsxes.is_empty() {
+    let dir_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "sans_nom".to_string());
+
+    let filename = format!("list_{}.xlsx", dir_name);
+    let new_xlsx_path = path.join(&filename);
+
+    let book = umya_spreadsheet::new_file();
+    match umya_spreadsheet::writer::xlsx::write(&book, &new_xlsx_path) {
+        Ok(()) => {
+            xlsxes.push((filename, true));
+        }
+        Err(e) => {
+            eprintln!("Erreur lors de la création du xlsx : {:?}", e);
+            // on n'ajoute rien à xlsxes dans ce cas
+        }
+    }
+}
+
+
+xlsxes.append(&mut pics);
     xlsxes
 }

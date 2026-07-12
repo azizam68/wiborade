@@ -5,9 +5,7 @@ use iced::widget::image;
 use iced::widget::operation;
 use iced::widget::text_editor::Content;
 use iced::Task;
-use ::image::DynamicImage;
 use std::path::PathBuf;
-use std::ptr::null;
 
 impl Gui {
     pub fn update(&mut self, message: Message) -> Task<Message> {
@@ -161,6 +159,7 @@ fn refresh_handle(&mut self) {
     }
 
     /// Utile plus tard pour écrire le tag EXIF Orientation
+    #[allow(dead_code)]
     pub fn exif_orientation(&self) -> u16 {
         match self.angle {
             90  => 6,
