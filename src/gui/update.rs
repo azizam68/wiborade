@@ -83,7 +83,6 @@ impl Gui {
         let values = self.current_row.clone();
 
         if should_insert {
-            println!("insert dans le excel");
             Task::perform(
                 async move {
                     excel::insert_row(&output_path, row_index as u32, values)
@@ -92,10 +91,6 @@ impl Gui {
                 Message::ExcelUpdated,
             )
         } else {
-            println!(
-                "modifier le excel ligne {row_index} de {}",
-                self.excel_opened_file
-            );
             Task::perform(
                 async move {
                     excel::update_row(&output_path, row_index, values).map_err(|e| e.to_string())
@@ -106,7 +101,6 @@ impl Gui {
     }
 
     fn on_excel_updated(&mut self, _result: Result<(), String>) -> Task<Message> {
-        println!("done with message");
         Task::none()
     }
 
@@ -184,7 +178,6 @@ fn refresh_handle(&mut self) {
                 }
                 
                 self.current_row = current_row;
-                println!("Ligne trouvée: {:?}", self.current_row);
                 self.content = Content::with_text(&self.current_row[6]);
             }
             Err(e) => {
@@ -219,11 +212,10 @@ fn refresh_handle(&mut self) {
                 return Task::done(Message::LoadPressed);
             }
             None => {
-                self.current_dir = std::env::home_dir();
+                Task::none()
+                //self.current_dir = std::env::home_dir();
             }
         }
-
-        Task::none()
     }
 
     fn on_load_pressed(&mut self) -> Task<Message> {

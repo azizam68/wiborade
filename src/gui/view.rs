@@ -1,10 +1,13 @@
 use super::Gui;
 use crate::message::Message;
-use iced::widget::{
-    button, column, container, image, row, scrollable, slider, space, text, text_editor, text_input,
+use iced::widget::responsive;
+use iced::{
+    Alignment, Background, Border, Color, ContentFit, Element, Length, Theme,
+    widget::{
+        button, column, container, image, row, scrollable, slider, space, text, text_editor,
+        text_input,
+    },
 };
-use iced::{ Alignment, Background, Color, ContentFit, Element, Length, Theme };
-use iced::widget::{responsive};
 
 impl Gui {
     pub fn view(&self) -> Element<'_, Message> {
@@ -18,41 +21,40 @@ impl Gui {
         let mut ligne = row![scrollable(self.file_list()).width(250),];
 
         if let Some(handle) = &self.image_handle {
+            let image_area = responsive(|size| {
+                let available_width = size.width;
+                let available_height = size.height;
 
-let image_area = responsive(|size| {
-    let available_width = size.width;
-    let available_height = size.height;
+                let (base_w, base_h) = match &self.image_original {
+                    Some(img) => (img.width(), img.height()),
+                    None => (0, 0),
+                };
 
-    let (base_w, base_h) = match &self.image_original {
-        Some(img) => (img.width(), img.height()),
-        None => (0, 0),
-    };
+                let fit_zoom = if base_w > 0 && base_h > 0 {
+                    let zx = available_width / base_w as f32;
+                    let zy = available_height / base_h as f32;
+                    zx.min(zy)
+                } else {
+                    1.0
+                };
 
-    let fit_zoom = if base_w > 0 && base_h > 0 {
-        let zx = available_width / base_w as f32;
-        let zy = available_height / base_h as f32;
-        zx.min(zy)
-    } else {
-        1.0
-    };
+                let displayed_w = base_w as f32 * fit_zoom * self.zoom;
+                let displayed_h = base_h as f32 * fit_zoom * self.zoom;
 
-    let displayed_w = base_w as f32 * fit_zoom * self.zoom;
-    let displayed_h = base_h as f32 * fit_zoom * self.zoom;
-
-scrollable(
-        image(handle.clone())
-            .width(Length::Fixed(displayed_w))
-            .height(Length::Fixed(displayed_h))
-            .content_fit(ContentFit::Fill)
-    )
-    .direction(scrollable::Direction::Both {
-        vertical: scrollable::Scrollbar::default(),
-        horizontal: scrollable::Scrollbar::default(),
-    })
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .into()
-});
+                scrollable(
+                    image(handle.clone())
+                        .width(Length::Fixed(displayed_w))
+                        .height(Length::Fixed(displayed_h))
+                        .content_fit(ContentFit::Fill),
+                )
+                .direction(scrollable::Direction::Both {
+                    vertical: scrollable::Scrollbar::default(),
+                    horizontal: scrollable::Scrollbar::default(),
+                })
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+            });
 
             let rotate_controls = row![
                 button(text("⟲").size(20))
@@ -108,7 +110,7 @@ scrollable(
             ..Default::default()
         })
         .align_y(iced::alignment::Vertical::Bottom);
-    
+
         content = content.height(Length::Fill).push(status_bar);
 
         content.into()
@@ -193,6 +195,46 @@ fn field<'a>(label: &'a str, value: &'a str, index: usize) -> Element<'a, Messag
         text_input("", value)
             .on_input(move |new_val| Message::ExcelUpdate(index, new_val))
             .on_submit(Message::ExcelSubmit)
+            .style(|_, _status| {
+                match _status {
+                    text_input::Status::Active => text_input::Style {
+                        background: Background::Color(Color::WHITE),
+                        border: Border {
+                            color: Color::from_rgb(0.0, 0.0, 0.0),
+                            width: 1.0,
+                            radius: 6.0.into(),
+                        },
+                        icon: Color::BLACK,
+                        placeholder: Color::from_rgb(0.5, 0.5, 0.5),
+                        value: Color::BLACK,
+                        selection: Color::from_rgb(0.8, 0.8, 1.0),
+                    },
+                    text_input::Status::Hovered => text_input::Style {
+                        background: Background::Color(Color::WHITE),
+                        border: Border {
+                            color: Color::from_rgb(0.0, 0.0, 0.0),
+                            width: 1.0,
+                            radius: 6.0.into(),
+                        },
+                        icon: Color::BLACK,
+                        placeholder: Color::from_rgb(0.5, 0.5, 0.5),
+                        value: Color::BLACK,
+                        selection: Color::from_rgb(0.8, 0.8, 1.0),
+                    },
+                    _ => text_input::Style {
+                        background: Background::Color(Color::WHITE),
+                        border: Border {
+                            color: Color::from_rgb(1.0, 0.5, 0.5),
+                            width: 1.0,
+                            radius: 6.0.into(),
+                        },
+                        icon: Color::BLACK,
+                        placeholder: Color::from_rgb(0.5, 0.5, 0.5),
+                        value: Color::BLACK,
+                        selection: Color::from_rgb(0.8, 0.8, 1.0),
+                    },
+                }
+            })
             .width(Length::Fill),
     ]
     .spacing(5)
