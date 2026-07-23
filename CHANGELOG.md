@@ -29,3 +29,9 @@
 - [v0.1.4.1] Les fichiers excels vide ne font plus planter l'application car on verifie que le nombre de colonne est au moins egale au nombre necessaire en dur pour afficher le formulaire
 - Corrige le comportement de l'app quand on utilise un clavier numerique
 - Le fichier de listing est automatiquement crée si absent
+
+## [0.1.6] - 2026-07-23
+### Changed
+- fix le bug quand on annule le selecteur de dossier alors qu'il y a deja un dossier en cours
+- ajoute une bordure orange sur l'edit input
+- retire les messages dans la console
