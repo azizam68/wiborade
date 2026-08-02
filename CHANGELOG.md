@@ -35,3 +35,7 @@
 - fix le bug quand on annule le selecteur de dossier alors qu'il y a deja un dossier en cours
 - ajoute une bordure orange sur l'edit input
 - retire les messages dans la console
+
+## [0.1.7] - 2026-08-03
+### Changed
+- Le nom de l'application devient 'Wiborade'

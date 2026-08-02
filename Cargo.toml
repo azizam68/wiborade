@@ -1,5 +1,5 @@
 [package]
-name = "rust-img"
+name = "wiborade"
 version = "0.1.6"
 edition = "2024"
 

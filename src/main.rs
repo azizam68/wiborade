@@ -9,7 +9,7 @@ use iced::Task;
 
 fn main() -> iced::Result {
     iced::application(|| (Gui::default(), Task::none()), Gui::update, Gui::view)
-        .title("Gui")
+        .title("Wiborade")
         .subscription(Gui::subscription)
         .run()
 }
