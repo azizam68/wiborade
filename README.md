@@ -13,7 +13,7 @@ cargo build --release --target x86_64-pc-windows-gnu
 
 Il faut lancer l'exe puis selectionner un dossier contenant des jpg et au moins un excel format xlsx :
 ```bash
-./mon-programme.exe
+./wiborade.exe
 ```
 
 ## Fonctionnalités
